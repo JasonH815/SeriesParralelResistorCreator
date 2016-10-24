@@ -9,10 +9,10 @@ object Solver {
 
   def solve(genome:String):SolverResult = {
     val repr = genome.map(c => Element(c).repr).mkString(" ")
-    GlobalLogger.logger.info(repr)
+    GlobalLogger.logger.debug(repr)
 
     val resistance = Begin(0, genome).evaluate.r
-    GlobalLogger.logger.info(resistance.toString)
+    GlobalLogger.logger.debug(resistance.toString)
 
     SolverResult(genome, resistance, repr)
   }

@@ -1,4 +1,7 @@
-import app.{Element, ProblemEncoding}
+import app.{Element, EvolutionOperators, Evolve, Solver}
+
+import scala.util.Random
+import EvolutionOperators._
 
 /**
   * Created by Jason on 10/22/2016.
@@ -13,8 +16,35 @@ object Main {
             Element.r330.c + Element.seriesLinker.c + Element.r330.c +
             Element.r330.c +
             Element.closeParallel.c
-    Console.println(b)
-    new ProblemEncoding(b)
+
+    val resistors = "abcdefgh"
+    var r = Random.shuffle(resistors.iterator).mkString("")
+    r = r.wrapParallel
+      .insertSeries()
+      .insertSeries()
+      .insertParallel()
+      .insertParallel()
+      .insertSeries()
+      .insertSeries()
+      .insertParallel()
+      .insertParallel()
+      .insertSeries()
+      .insertSeries()
+      .insertParallel()
+      .insertParallel()
+      .insertSeries()
+      .insertSeries()
+      .insertSeries()
+      .insertSeries()
+      .insertSeries()
+      .insertSeries()
+      .insertSeries()
+      .insertSeries()
+
+
+    //Console.println(r)
+    //Solver.solve(r)
+    Evolve.runGeneration()
   }
 
 }

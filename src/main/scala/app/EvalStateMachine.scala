@@ -87,7 +87,7 @@ case class EvalStack(r:Double, input:String, stack:List[Element], parallel:List[
         if (input.isEmpty)
           EndState(rNext)
         else
-          Begin(rNext, input)
+          EvalStringExpectSeries(rNext, input)
       } else {
         OpenStack(r, input, Element('-', Some(rNext), rNext.toString) :: tail)
       }

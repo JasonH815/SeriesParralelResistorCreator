@@ -12,7 +12,7 @@ import org.slf4j.LoggerFactory
   * Created by Jason on 10/23/2016.
   */
 object LoggerConfig {
-  val logLevel = Level.TRACE
+  val logLevel = Level.INFO
 }
 
 object GlobalLogger {
