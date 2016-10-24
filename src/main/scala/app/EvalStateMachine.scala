@@ -22,42 +22,9 @@ package app
   *
   */
 
-case class Element(b:String, value:Option[Double], repr:String)
 
 
-object Element {
-  val r330 = Element("0000", Some(330), "330")
-  val r470 = Element("0001", Some(470), "470")
-  val r560 = Element("0010", Some(560), "560")
-  val r1200 = Element("0011", Some(1200), "1200")
-  val r2200 = Element("0100", Some(2200), "2200")
-  val r3300 = Element("0101", Some(3300), "3300")
-  val r4700 = Element("0110", Some(4700), "4700")
-  val r10000 = Element("0111", Some(10000), "10000")
-  val openParallel = Element("1000", None, "(")
-  val closeParallel = Element("1001", None, ")")
-  val seriesLinker = Element("1010", None, "+")
-  
-  def apply(s:String):Element = {
-    s match {
-      case m if m == r330.b => r330
-      case m if m == r330.b => r330
-      case m if m == r470.b => r470
-      case m if m == r560.b => r560
-      case m if m == r1200.b => r1200
-      case m if m == r2200.b => r2200
-      case m if m == r3300.b => r3300
-      case m if m == r4700.b => r4700
-      case m if m == r10000.b => r10000
-      case m if m == openParallel.b => openParallel
-      case m if m == closeParallel.b => closeParallel
-      case m if m == seriesLinker.b => seriesLinker
-      case _ => throw new IllegalArgumentException("no encoding for " + s)
-    }
-  }
-}
-
-trait EvalState {
+sealed trait EvalState {
   def next(element: Element):EvalState
   val r:Double
   val element:Element
@@ -79,30 +46,30 @@ case class Begin(r:Double, input:String) extends EvalState {
         EndState(r + element.value.get)
       else
         EvalStringExpectSeries(r + element.value.get, tail)
-    } else if(element.b == Element.openParallel.b) {
+    } else if(element.c == Element.openParallel.c) {
       OpenStack(r, tail, List[Element](Element.openParallel))
     }
     else throw new IllegalStateException("Expected open parallel or number")
   }
-  val element = Element(input.take(4))
-  val tail = input.drop(4)
+  val element = Element(input.head)
+  val tail = input.tail
 }
 case class OpenStack(r:Double, input:String, stack:List[Element]) extends EvalState {
   override def next(element: Element): EvalState = {
     GlobalLogger.logger.trace(s"resistance: $r")
     GlobalLogger.logger.trace(s"input: $input")
     GlobalLogger.logger.trace(s"stack: ${stack.mkString(", ")}\n")
-    if (element.b == Element.closeParallel.b) {
-      EvalStack(r, input.drop(4), stack, List())
+    if (element.c == Element.closeParallel.c) {
+      EvalStack(r, input.tail, stack, List())
     } else {
       OpenStack(r, tail, element :: stack)
     }
   }
-  if (input.length < 4) {
+  if (input.isEmpty) {
     throw new IllegalStateException("Unexpected end of input")
   }
-  val element = Element(input.take(4))
-  val tail = input.drop(4)
+  val element = Element(input.head)
+  val tail = input.tail
 }
 case class EvalStack(r:Double, input:String, stack:List[Element], parallel:List[Double]) extends EvalState {
   override def next(element: Element): EvalState = {
@@ -112,9 +79,9 @@ case class EvalStack(r:Double, input:String, stack:List[Element], parallel:List[
     GlobalLogger.logger.trace(s"parallel: ${parallel.mkString(", ")}\n")
     if (element.value.isDefined) {
       EvalStack(r, input, tail, element.value.get :: parallel)
-    } else if(element.b == Element.seriesLinker.b) {
+    } else if(element.c == Element.seriesLinker.c) {
       EvalStackExpectNum(r, input, tail, parallel.tail, parallel.head)
-    } else if(element.b == Element.openParallel.b) {
+    } else if(element.c == Element.openParallel.c) {
       val rNext = r + 1/parallel.map(r => 1/r).sum
       if (tail.isEmpty) {
         if (input.isEmpty)
@@ -122,7 +89,7 @@ case class EvalStack(r:Double, input:String, stack:List[Element], parallel:List[
         else
           Begin(rNext, input)
       } else {
-        OpenStack(r, input, Element("-", Some(rNext), rNext.toString) :: tail)
+        OpenStack(r, input, Element('-', Some(rNext), rNext.toString) :: tail)
       }
     } else throw new IllegalStateException("Invalid stack character encountered: " + element.repr)
 
@@ -148,26 +115,19 @@ case class EvalStringExpectSeries(r:Double, input:String) extends EvalState {
   override def next(element: Element): EvalState = {
     GlobalLogger.logger.trace(s"resistance: $r")
     GlobalLogger.logger.trace(s"input: $input\n")
-    if (element.b == Element.seriesLinker.b) {
+    if (element.c == Element.seriesLinker.c) {
       Begin(r, tail)
     } else throw new IllegalStateException("Expected series linker. Got " + element.repr)
   }
-  if (input.length < 4) {
+  if (input.isEmpty) {
     throw new IllegalStateException("Unexpected end of input")
   }
-  val element = Element(input.take(4))
-  val tail = input.drop(4)
+  val element = Element(input.head)
+  val tail = input.tail
 }
 case class EndState(r:Double) extends EvalState {
   override def next(element: Element): EvalState = this
-  val element = Element("-", None, "-")
+  val element = Element('-', None, "-")
 }
 
-class ProblemEncoding(bits:String) {
-  val repr = bits.grouped(4).map(e => Element(e).repr).mkString(" ")
-  GlobalLogger.logger.info(repr)
 
-
-  val resistance = Begin(0, bits).evaluate.r
-  GlobalLogger.logger.info(resistance.toString)
-}

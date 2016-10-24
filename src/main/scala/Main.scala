@@ -6,13 +6,13 @@ import app.{Element, ProblemEncoding}
 object Main {
 
   def main(args: Array[String]): Unit = {
-    val a = Element.r330.b + Element.seriesLinker.b + Element.r330.b + Element.seriesLinker.b + Element.r330.b
-    val b = Element.openParallel.b  +
-            Element.r330.b + Element.seriesLinker.b +
-              Element.openParallel.b + Element.r1200.b + Element.r1200.b + Element.closeParallel.b +
-            Element.r330.b + Element.seriesLinker.b + Element.r330.b +
-            Element.r330.b +
-            Element.closeParallel.b
+    val a = "" + Element.r330.c + Element.seriesLinker.c + Element.r330.c + Element.seriesLinker.c + Element.r330.c
+    val b = "" + Element.openParallel.c  +
+            Element.r330.c + Element.seriesLinker.c +
+              Element.openParallel.c + Element.r1200.c + Element.r1200.c + Element.closeParallel.c +
+            Element.r330.c + Element.seriesLinker.c + Element.r330.c +
+            Element.r330.c +
+            Element.closeParallel.c
     Console.println(b)
     new ProblemEncoding(b)
   }
