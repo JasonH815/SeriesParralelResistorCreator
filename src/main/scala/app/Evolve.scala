@@ -16,10 +16,10 @@ import scala.concurrent.{Await, Future}
 object Evolve {
 
   val resistors = "abcdefgh"
-  val generationCycles = 100
-  val generationPopulation = 100000
+  val generationCycles = 500
+  val generationPopulation = 10000
   val targetResistance = 7000
-  val numberOfResultsToKeep = 20
+  val numberOfResultsToKeep = 1000
   val numberOfGenerations = 40
 
 
@@ -70,7 +70,7 @@ object Evolve {
     }
 
     GlobalLogger.logger.info(s"results processed ${resultProcessCount} times")
-    best.iterator.map(r => r.resistance.toString + ": " + r.repr).foreach(s => GlobalLogger.logger.info(s))
+    best.iterator.take(10).map(r => r.resistance.toString + ": " + r.repr).foreach(s => GlobalLogger.logger.info(s))
 
     def runGeneration(): Unit = {
       val bestList = best.iterator.toVector
@@ -93,7 +93,7 @@ object Evolve {
       }
 
       GlobalLogger.logger.info(s"results processed ${resultProcessCount} times")
-      best.iterator.map(r => r.resistance.toString + ": " + r.repr).foreach(s => GlobalLogger.logger.info(s))
+      best.iterator.take(10).map(r => r.resistance.toString + ": " + r.repr).foreach(s => GlobalLogger.logger.info(s))
     }
 
     for (i <- 0 until numberOfGenerations) {
