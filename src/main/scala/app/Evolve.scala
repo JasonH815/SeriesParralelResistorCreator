@@ -15,12 +15,13 @@ import scala.concurrent.{Await, Future}
   */
 object Evolve {
 
+  //parameters
   val resistors = "abcdefgh"
-  val generationCycles = 500
+  val generationCycles = 10
   val generationPopulation = 10000
   val targetResistance = 7000
   val numberOfResultsToKeep = 1000
-  val numberOfGenerations = 40
+  val numberOfGenerations = 8
 
 
   def generate():Future[String] = {
@@ -41,64 +42,63 @@ object Evolve {
     }
   }
 
-  def runGeneration():Unit = {
-    val ordering = Ordering.by[SolverResult, Double](r => math.abs(r.resistance - targetResistance))
+
+  def runMainEvolution():Unit = {
+
+    val ordering = Ordering.by[SolverResult, Double]((result) => math.abs(result.resistance - targetResistance))
     val best = scala.collection.mutable.TreeSet.empty[SolverResult](ordering)
 
     var lastSolverResult = SolverResult("", Double.NegativeInfinity, "")
     var size = 0
     var resultProcessCount = 0
 
-    var results = List.empty[Future[SolverResult]]
-
-    for (i <- 0 until generationPopulation) {
-      results = results.+:(generate().map{genome => Solver.solve(genome)}.recover{case ex => throw ex})
+    def processResults(results:List[Future[SolverResult]]) = {
+      Await.result(Future.sequence(results), Duration.Inf).foreach{
+        result =>
+          if (size < numberOfResultsToKeep) {
+            best += result
+            size += 1
+          } else if (Math.abs(result.resistance - targetResistance) < Math.abs(lastSolverResult.resistance - targetResistance)) {
+            best += result
+            best.remove(best.lastKey)
+            lastSolverResult = best.lastKey
+            size = best.size
+          }
+          resultProcessCount += 1
+      }
     }
 
-    Await.result(Future.sequence(results), Duration.Inf).foreach{
-      result =>
-        if (size < numberOfResultsToKeep) {
-          best += result
-          size += 1
-        } else if (Math.abs(result.resistance - targetResistance) < Math.abs(lastSolverResult.resistance - targetResistance)) {
-          best += result
-          best.remove(best.lastKey)
-          lastSolverResult = best.lastKey
-          size = best.size
-        }
-        resultProcessCount += 1
-    }
-
-    GlobalLogger.logger.info(s"results processed ${resultProcessCount} times")
-    best.iterator.take(10).map(r => r.resistance.toString + ": " + r.repr).foreach(s => GlobalLogger.logger.info(s))
-
-    def runGeneration(): Unit = {
-      val bestList = best.iterator.toVector
+    def runGeneration(bestList:Vector[SolverResult]): List[Future[SolverResult]] = {
+      var results = List.empty[Future[SolverResult]]
 
       for (i <- 0 until generationPopulation) {
         val idx1 = Random.nextInt(bestList.length)
         val idx2 = Random.nextInt(bestList.length)
-        val crossResult = Solver.solve(crossover(bestList(idx1).genome, bestList(idx2).genome))
-
-        if (size < numberOfResultsToKeep) {
-          best += crossResult
-          size += 1
-        } else if (Math.abs(crossResult.resistance - targetResistance) < Math.abs(lastSolverResult.resistance - targetResistance)) {
-          best += crossResult
-          best.remove(best.lastKey)
-          lastSolverResult = best.lastKey
-          size = best.size
-        }
-        resultProcessCount += 1
+        results = Future {
+          Solver.solve(crossover(bestList(idx1).genome, bestList(idx2).genome))
+        }.recover { case ex => throw ex } +: results
       }
 
-      GlobalLogger.logger.info(s"results processed ${resultProcessCount} times")
-      best.iterator.take(10).map(r => r.resistance.toString + ": " + r.repr).foreach(s => GlobalLogger.logger.info(s))
+      results
     }
 
-    for (i <- 0 until numberOfGenerations) {
-      runGeneration()
+    // seed generation
+    var results = List.empty[Future[SolverResult]]
+    for (i <- 0 until generationPopulation) {
+      results = results.+:(generate().map{genome => Solver.solve(genome)}.recover{case ex => throw ex})
     }
+    processResults(results)
+    Console.err.println(s"Seed generation, $resultProcessCount results processed")
+
+    //run generations, they should run sequentially but solve in parallel within a generation
+    for (i <- 0 until numberOfGenerations) {
+      val bestList = best.iterator.toVector
+      processResults(runGeneration(bestList))
+      Console.err.println(s"Generation ${i + 1}, $resultProcessCount results processed")
+    }
+
+    GlobalLogger.logger.info(s"results processed $resultProcessCount times")
+    best.iterator.take(50).map(r => r.resistance.toString + ": " + r.repr).foreach(s => GlobalLogger.logger.info(s))
 
   }
 

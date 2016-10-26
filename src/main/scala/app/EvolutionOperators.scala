@@ -20,19 +20,6 @@ object EvolutionOperators {
 
     def cleanParens:String = {
 
-      def getMatchingIdx(s: String): Int = {
-        var count = 1
-        for (i <- 1 until s.length) {
-          if (s.charAt(i) == '(')
-            count += 1
-          else if (s.charAt(i) == ')')
-            count -= 1
-          if (count == 0)
-            return i
-        }
-        -1
-      }
-
       def getPriority(c: Option[Char], currentParen:Char, defaultPriority:Int): Int = {
         c.map {
           case p if p == ')' && currentParen == '(' => 1
@@ -43,7 +30,7 @@ object EvolutionOperators {
         }.getOrElse(defaultPriority)
       }
 
-      GlobalLogger.logger.debug(s"Starting Genome: $genome")
+      GlobalLogger.logger.trace(s"Starting Genome: $genome")
 
       var oldGenome = genome
       var newGenomeHead = ""
@@ -104,7 +91,7 @@ object EvolutionOperators {
         currentIdx = oldGenome.indexOf('(')
       }
 
-      GlobalLogger.logger.debug(s"New Genome: ${newGenomeHead + oldGenome}") // + newGenomeTail}")
+      GlobalLogger.logger.trace(s"New Genome: ${newGenomeHead + oldGenome}") // + newGenomeTail}")
       newGenomeHead + oldGenome
     }
 
@@ -157,27 +144,52 @@ object EvolutionOperators {
 
 
     def deleteParallel():String = {
-      val result = deleteChar('(', genome)
-      deleteChar(')', result).clean()
+      val idx1 = getIndexForDelete('(', genome)
+      if (idx1 < 0)
+        return genome
+      val idx2 = getMatchingIdx(genome.drop(idx1))+idx1
+      (genome.take(idx1) + genome.slice(idx1 + 1, idx2) + genome.drop(idx2 + 1)).clean()
     }
 
     def deleteSeries():String = {
-      deleteChar('+', genome).clean()
+      val idx = getIndexForDelete('+', genome)
+      if (idx >= 0) (genome.take(idx) + genome.drop(idx + 1)).clean() else genome
     }
+
+
   }
 
-  def deleteChar(c:Char, genome:String):String = {
-    val split = genome.split(c)
-    val idx = Random.nextInt(split.length)
+  def getIndexForDelete(c:Char, genome:String):Int = {
+    val chars = genome.filter(_ == c)
 
+    if(chars.length < 1) {
+      return -1
+    }
+
+    // go to index of random occurrence of the char
+    val n = Random.nextInt(chars.length) + 1
+    var i = -1
     var count = 0
-    split.foldLeft[String]("")((current, s) => {
-      val result = if(idx == count) current + s else current + c + s
+    while(count != n) {
+      i = genome.indexOf(c, i + 1)
       count += 1
-      result
-    })
+    }
+
+    i
   }
 
+  def getMatchingIdx(s: String): Int = {
+    var count = 1
+    for (i <- 1 until s.length) {
+      if (s.charAt(i) == '(')
+        count += 1
+      else if (s.charAt(i) == ')')
+        count -= 1
+      if (count == 0)
+        return i
+    }
+    -1
+  }
 
   def crossover(p1:String, p2:String): String = {
 
@@ -189,6 +201,26 @@ object EvolutionOperators {
       } else {
         genome + List.fill(leftParen - rightParen)(')').mkString("")
       }
+    }
+
+    def chanceForMutation(genome:String)(implicit chance: Double = 0.1):String = {
+      //val functions:List[] = List(insertSeries, deleteSeries, insertParallel(), deleteParallel(), swap2Resistors]
+      var res = genome
+      var roll = Random.nextDouble()
+      while (roll < chance) {
+        Random.nextInt(5) match {
+          case 0 => res = res.insertSeries()
+          case 1 => res = res.insertParallel()
+          case 2 => res = res.deleteSeries()
+            if (Random.nextBoolean()) res = res.insertSeries()
+          case 3 => res = res.deleteParallel()
+            if (Random.nextBoolean()) res = res.insertParallel()
+          case 4=> res = res.swap2Resistors()
+        }
+
+        roll = Random.nextDouble()
+      }
+      res.wrapParallel.clean().cleanParens
     }
 
     val p1Resistors = p1.filter(c => resistorSet.contains(c))
@@ -240,6 +272,10 @@ object EvolutionOperators {
     var res = (leftTail ::: middle.toList ::: rightTail).mkString("")
     res = addMissingParen(res).wrapParallel.clean().cleanParens  //we need the wrap in case series is at head or tail
     GlobalLogger.logger.trace(s"Crossover: $res")
+    res = chanceForMutation(res)
+    GlobalLogger.logger.trace(s"Crossover after mutations: $res")
     res
   }
+
+
 }
