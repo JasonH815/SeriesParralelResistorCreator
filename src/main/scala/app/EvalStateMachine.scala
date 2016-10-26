@@ -37,7 +37,13 @@ sealed trait EvalState {
   }
 }
 
-case class Begin(r:Double, input:String) extends EvalState {
+case class Begin(input:String) extends EvalState {
+  override val r = 0.0
+  override def next(element: Element): EvalState = EvalInput(0, "(" + input + ")")
+  override val element: Element = Element('_', None, "")
+}
+
+case class EvalInput(r:Double, input:String) extends EvalState {
   override def next(element: Element):EvalState = {
     GlobalLogger.logger.trace(s"resistance: $r")
     GlobalLogger.logger.trace(s"input: $input\n")
@@ -54,6 +60,7 @@ case class Begin(r:Double, input:String) extends EvalState {
   val element = Element(input.head)
   val tail = input.tail
 }
+
 case class OpenStack(r:Double, input:String, stack:List[Element]) extends EvalState {
   override def next(element: Element): EvalState = {
     GlobalLogger.logger.trace(s"resistance: $r")
@@ -116,7 +123,7 @@ case class EvalStringExpectSeries(r:Double, input:String) extends EvalState {
     GlobalLogger.logger.trace(s"resistance: $r")
     GlobalLogger.logger.trace(s"input: $input\n")
     if (element.c == Element.seriesLinker.c) {
-      Begin(r, tail)
+      EvalInput(r, tail)
     } else throw new IllegalStateException("Expected series linker. Got " + element.repr)
   }
   if (input.isEmpty) {
@@ -127,7 +134,7 @@ case class EvalStringExpectSeries(r:Double, input:String) extends EvalState {
 }
 case class EndState(r:Double) extends EvalState {
   override def next(element: Element): EvalState = this
-  val element = Element('-', None, "-")
+  val element = Element('_', None, "_")
 }
 
 

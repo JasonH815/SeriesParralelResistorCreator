@@ -19,7 +19,7 @@ object Main {
 
     val resistors = "abcdefgh"
     var r = Random.shuffle(resistors.iterator).mkString("")
-    r = r.wrapParallel
+    r = r
       .insertSeries()
       .insertSeries()
       .insertParallel()

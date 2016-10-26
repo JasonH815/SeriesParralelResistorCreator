@@ -11,7 +11,7 @@ object Solver {
     val repr = genome.map(c => Element(c).repr).mkString(" ")
     GlobalLogger.logger.debug(repr)
 
-    val resistance = Begin(0, genome).evaluate.r
+    val resistance = Begin(genome).evaluate.r
     GlobalLogger.logger.debug(resistance.toString)
 
     SolverResult(genome, resistance, repr)
