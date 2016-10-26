@@ -17,9 +17,10 @@ object Evolve {
 
   val resistors = "abcdefgh"
   val generationCycles = 100
-  val generationPopulation = 10000
+  val generationPopulation = 100000
   val targetResistance = 7000
   val numberOfResultsToKeep = 20
+  val numberOfGenerations = 40
 
 
   def generate():Future[String] = {
@@ -71,18 +72,33 @@ object Evolve {
     GlobalLogger.logger.info(s"results processed ${resultProcessCount} times")
     best.iterator.map(r => r.resistance.toString + ": " + r.repr).foreach(s => GlobalLogger.logger.info(s))
 
-    val bestList = best.iterator.toList
-    val crossoverGenome = crossover(bestList.head.genome, bestList(1).genome)
-    GlobalLogger.logger.info(s"best 0: ${bestList.head.genome}")
-    GlobalLogger.logger.info(s"best 1: ${bestList(1).genome}")
-    GlobalLogger.logger.info(s"crossover genome: ${crossoverGenome}")
-    val test = Solver.solve(crossoverGenome)
+    def runGeneration(): Unit = {
+      val bestList = best.iterator.toVector
 
-    GlobalLogger.logger.info(s"best 0: ${bestList.head.resistance}, ${bestList.head.repr}")
-    GlobalLogger.logger.info(s"best 1: ${bestList(1).resistance}, ${bestList(1).repr}")
-    GlobalLogger.logger.info(s"crossover test: ${test.resistance}, ${test.repr}")
+      for (i <- 0 until generationPopulation) {
+        val idx1 = Random.nextInt(bestList.length)
+        val idx2 = Random.nextInt(bestList.length)
+        val crossResult = Solver.solve(crossover(bestList(idx1).genome, bestList(idx2).genome))
 
+        if (size < numberOfResultsToKeep) {
+          best += crossResult
+          size += 1
+        } else if (Math.abs(crossResult.resistance - targetResistance) < Math.abs(lastSolverResult.resistance - targetResistance)) {
+          best += crossResult
+          best.remove(best.lastKey)
+          lastSolverResult = best.lastKey
+          size = best.size
+        }
+        resultProcessCount += 1
+      }
 
+      GlobalLogger.logger.info(s"results processed ${resultProcessCount} times")
+      best.iterator.map(r => r.resistance.toString + ": " + r.repr).foreach(s => GlobalLogger.logger.info(s))
+    }
+
+    for (i <- 0 until numberOfGenerations) {
+      runGeneration()
+    }
 
   }
 

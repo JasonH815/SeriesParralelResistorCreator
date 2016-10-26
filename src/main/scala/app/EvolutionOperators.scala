@@ -153,9 +153,7 @@ object EvolutionOperators {
     def insertSeries():String = {
       val idx1 = Random.nextInt(genome.length - 1) + 1 //don't insert at beginning or end
       (genome.take(idx1) + "+" + genome.drop(idx1)).clean()
-
     }
-
 
 
     def deleteParallel():String = {
@@ -166,7 +164,6 @@ object EvolutionOperators {
     def deleteSeries():String = {
       deleteChar('+', genome).clean()
     }
-
   }
 
   def deleteChar(c:Char, genome:String):String = {
@@ -184,52 +181,65 @@ object EvolutionOperators {
 
   def crossover(p1:String, p2:String): String = {
 
-    val p1Resistors = p1.filter(c => resistorSet.contains(c))
-    Console.err.println(s"p1 resistors: $p1Resistors")
+    def addMissingParen(genome:String):String = {
+      val leftParen = genome.count(_ == '(')
+      val rightParen = genome.count(_ == ')')
+      if(leftParen < rightParen) {
+        List.fill(rightParen - leftParen)('(').mkString("") + genome
+      } else {
+        genome + List.fill(leftParen - rightParen)(')').mkString("")
+      }
+    }
 
-    val idx1 = 0//Random.nextInt(p1Resistors.length + 1)
-    val idx2 = 8//Random.nextInt(p1Resistors.length - idx1 + 1)+idx1
+    val p1Resistors = p1.filter(c => resistorSet.contains(c))
+    GlobalLogger.logger.trace(s"p1 resistors: $p1Resistors")
+
+    val idx1 = Random.nextInt(p1Resistors.length + 1)
+    val idx2 = Random.nextInt(p1Resistors.length - idx1 + 1)+idx1
 
     val r1 = if (idx1 < p1Resistors.length) p1Resistors.charAt(idx1) else '$'
     val r2 = if (idx2 < p1Resistors.length) p1Resistors.charAt(idx2) else '$'
 
-    Console.err.println(s"idx1: $idx1")
-    Console.err.println(s"idx2: $idx2")
-    Console.err.println(s"p1: $p1")
-    Console.err.println(s"p2: $p2")
-    Console.err.println(s"r1: $r1")
-    Console.err.println(s"r2: $r2")
+    GlobalLogger.logger.trace(s"idx1: $idx1")
+    GlobalLogger.logger.trace(s"idx2: $idx2")
+    GlobalLogger.logger.trace(s"p1: $p1")
+    GlobalLogger.logger.trace(s"p2: $p2")
+    GlobalLogger.logger.trace(s"r1: $r1")
+    GlobalLogger.logger.trace(s"r2: $r2")
 
-    //pick random points to splice
+    //get the left and right tails of the splice points
     val leftTail:List[Char] = p1.takeWhile(_ != r1).toList
     val rightTail:List[Char] = p1.dropWhile(_ != r2).toList
 
-    Console.err.println(s"left tail: ${leftTail.mkString("")}")
-    Console.err.println(s"right tail: ${rightTail.mkString("")}")
+    GlobalLogger.logger.trace(s"left tail: ${leftTail.mkString("")}")
+    GlobalLogger.logger.trace(s"right tail: ${rightTail.mkString("")}")
 
     //copy of p2 resistors and structure
     //val p1Resistors = leftTail.toSet.union(rightTail.toSet)
-    var middle = p2.filter(c => (resistorsWithBoundsSet.contains(c) && !p1Resistors.contains(c)) || operatorSet.contains(c))
-    var previousLength = middle.length+1
+    val tailResistorsSet = (leftTail ::: rightTail).filter(c => resistorSet.contains(c)).toSet
+    var middle = if (idx1 != idx2)
+      p2.filter(c => (resistorSet.contains(c) && !tailResistorsSet.contains(c)) || operatorSet.contains(c))
+    else ""
 
-    // add missing parens
-    val leftParen = middle.count(_ == '(')
-    val rightParen = middle.count(_ == ')')
-    if(leftParen < rightParen) {
-      middle = List.fill(rightParen - leftParen)('(').mkString("") + middle
-    } else {
-      middle = middle + List.fill(leftParen - rightParen)(')').mkString("")
+    GlobalLogger.logger.trace(s"middle: $middle")
+
+    if (middle.length > 0) {
+      var previousLength = middle.length + 1
+
+      // clean
+      while (middle.length != previousLength) {
+        previousLength = middle.length
+        middle = middle.clean()
+      }
+
+      // add missing parens
+      middle = addMissingParen(middle).cleanParens
+      GlobalLogger.logger.trace(s"cleaned middle: $middle")
     }
 
-    // remove trash
-    while (middle.length != previousLength) {
-      previousLength = middle.length
-      middle = middle.clean()
-    }
-
-    (leftTail ::: middle.toList ::: rightTail).mkString("")
-
+    var res = (leftTail ::: middle.toList ::: rightTail).mkString("")
+    res = addMissingParen(res).wrapParallel.clean().cleanParens  //we need the wrap in case series is at head or tail
+    GlobalLogger.logger.trace(s"Crossover: $res")
+    res
   }
-
-
 }
