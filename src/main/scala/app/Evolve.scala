@@ -22,7 +22,7 @@ object Evolve {
   val generationPopulation = 10000
   val targetResistance = 7000
   val numberOfResultsToKeep = 1000
-  val numberOfGenerations = 100
+  val numberOfGenerations = 1000
   val allowDuplicateResistors = false
   val limitLength = 100
 
@@ -50,11 +50,19 @@ object Evolve {
 
     val ordering = Ordering.by[SolverResult, Double]((result) => math.abs(result.resistance - targetResistance))
     var best = TreeSet.empty[SolverResult](ordering)
+    var resultsMap = Map.empty[Double, Set[SolverResult]]
 
     var lastSolverResult = SolverResult("", Double.NegativeInfinity, "")
-    var size = 0
+    var size = 0  // we don't care too much about having atomic access to this, the best list will self-correct
     var resultProcessCount = 0
-    var top = Set.empty[SolverResult]
+
+    def insertBest(result:SolverResult): TreeSet[SolverResult] = {
+        resultsMap  = resultsMap +
+          (result.resistance ->
+            (resultsMap.getOrElse(result.resistance, Set.empty[SolverResult]) + result))
+        best + result
+      }
+
 
     def processResults(results:List[Future[SolverResult]]) = {
       Await.result(Future.sequence(results), Duration.Inf).foreach{
@@ -63,12 +71,7 @@ object Evolve {
             best += result
             size += 1
           } else if (Math.abs(result.resistance - targetResistance) < Math.abs(lastSolverResult.resistance - targetResistance)) {
-            if (top.isEmpty || Math.abs(best.head.resistance - result.resistance) < 10E-9)
-              top = top + result
-            else if (Math.abs(result.resistance - targetResistance) < Math.abs(best.head.resistance - targetResistance))
-              top = Set(result)
-
-            best += result
+            best = insertBest(result)
             best -= best.lastKey
             lastSolverResult = best.lastKey
             size = best.size
@@ -79,14 +82,16 @@ object Evolve {
 
     def runGeneration(bestList:Vector[SolverResult]): List[Future[SolverResult]] = {
       var results = List.empty[Future[SolverResult]]
-
       for (i <- 0 until generationPopulation) {
         val idx1 = Random.nextInt(bestList.length)
         val idx2 = Random.nextInt(bestList.length)
         results = Future {
           Solver.solve(crossover(bestList(idx1).genome, bestList(idx2).genome,
             allowDuplicates = allowDuplicateResistors, limitLength = limitLength))
-        }.recover { case ex => throw ex } +: results
+        }.recover { case ex => {
+          Console.err.println(ex)
+          SolverResult("", Double.NegativeInfinity, "")
+        }} +: results
       }
 
       results
@@ -105,12 +110,16 @@ object Evolve {
       val bestList = best.iterator.toVector
       processResults(runGeneration(bestList))
       Console.err.println(s"Generation ${i + 1}, $resultProcessCount results processed")
+      //best.iterator.take(20).map(r => r.resistance.toString + ": " + r.repr).foreach(s => GlobalLogger.logger.info(s))
     }
 
     GlobalLogger.logger.info(s"results processed $resultProcessCount times")
     best.iterator.take(50).map(r => r.resistance.toString + ": " + r.repr).foreach(s => GlobalLogger.logger.info(s))
     GlobalLogger.logger.info("list of bst results")
-    top.map(r => r.resistance.toString + ": " + r.repr).foreach(s => GlobalLogger.logger.info(s))
+    best.iterator.take(10)
+      .flatMap(r => resultsMap(r.resistance))
+      .map(r => r.resistance.toString + ": " + r.repr)
+      .foreach(s => GlobalLogger.logger.info(s))
 
   }
 
