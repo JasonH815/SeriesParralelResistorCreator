@@ -5,6 +5,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import scala.util.{Failure, Random, Success}
 import EvolutionOperators._
 
+import scala.collection.immutable.TreeSet
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
@@ -21,7 +22,9 @@ object Evolve {
   val generationPopulation = 10000
   val targetResistance = 7000
   val numberOfResultsToKeep = 1000
-  val numberOfGenerations = 8
+  val numberOfGenerations = 100
+  val allowDuplicateResistors = false
+  val limitLength = 100
 
 
   def generate():Future[String] = {
@@ -46,11 +49,12 @@ object Evolve {
   def runMainEvolution():Unit = {
 
     val ordering = Ordering.by[SolverResult, Double]((result) => math.abs(result.resistance - targetResistance))
-    val best = scala.collection.mutable.TreeSet.empty[SolverResult](ordering)
+    var best = TreeSet.empty[SolverResult](ordering)
 
     var lastSolverResult = SolverResult("", Double.NegativeInfinity, "")
     var size = 0
     var resultProcessCount = 0
+    var top = Set.empty[SolverResult]
 
     def processResults(results:List[Future[SolverResult]]) = {
       Await.result(Future.sequence(results), Duration.Inf).foreach{
@@ -59,8 +63,13 @@ object Evolve {
             best += result
             size += 1
           } else if (Math.abs(result.resistance - targetResistance) < Math.abs(lastSolverResult.resistance - targetResistance)) {
+            if (top.isEmpty || Math.abs(best.head.resistance - result.resistance) < 10E-9)
+              top = top + result
+            else if (Math.abs(result.resistance - targetResistance) < Math.abs(best.head.resistance - targetResistance))
+              top = Set(result)
+
             best += result
-            best.remove(best.lastKey)
+            best -= best.lastKey
             lastSolverResult = best.lastKey
             size = best.size
           }
@@ -75,7 +84,8 @@ object Evolve {
         val idx1 = Random.nextInt(bestList.length)
         val idx2 = Random.nextInt(bestList.length)
         results = Future {
-          Solver.solve(crossover(bestList(idx1).genome, bestList(idx2).genome))
+          Solver.solve(crossover(bestList(idx1).genome, bestList(idx2).genome,
+            allowDuplicates = allowDuplicateResistors, limitLength = limitLength))
         }.recover { case ex => throw ex } +: results
       }
 
@@ -99,6 +109,8 @@ object Evolve {
 
     GlobalLogger.logger.info(s"results processed $resultProcessCount times")
     best.iterator.take(50).map(r => r.resistance.toString + ": " + r.repr).foreach(s => GlobalLogger.logger.info(s))
+    GlobalLogger.logger.info("list of bst results")
+    top.map(r => r.resistance.toString + ": " + r.repr).foreach(s => GlobalLogger.logger.info(s))
 
   }
 

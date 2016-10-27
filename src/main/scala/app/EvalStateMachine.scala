@@ -87,6 +87,9 @@ case class EvalStack(r:Double, input:String, stack:List[Element], parallel:List[
     if (element.value.isDefined) {
       EvalStack(r, input, tail, element.value.get :: parallel)
     } else if(element.c == Element.seriesLinker.c) {
+      if (parallel.isEmpty) {
+        Console.err.print("wtfbbq")
+      }
       EvalStackExpectNum(r, input, tail, parallel.tail, parallel.head)
     } else if(element.c == Element.openParallel.c) {
       val rNext = r + 1/parallel.map(r => 1/r).sum

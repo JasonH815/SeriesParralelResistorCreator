@@ -99,12 +99,19 @@ object EvolutionOperators {
 
     def clean():String = {
 
+      if (genome.count(c => resistorSet.contains(c)) < 1){
+        return ""
+      }
+
       // fix bad mutations
       var result = genome
       result = result.replace("+)", ")")
       result = result.replace("(+", "(")
       result = result.replace("++", "+")
-      result.replace("()", "")
+      result = result.replace("()", "")
+      if (genome.head == '+') result = result.drop(1)
+      if (genome.last == '+') result = result.dropRight(1)
+      result
     }
 
     def swap2Resistors():String = {
@@ -114,6 +121,10 @@ object EvolutionOperators {
 
       val idx1 = genome.indexOf(r1)
       val idx2 = genome.indexOf(r2)
+
+      if(idx1 < 0 || idx2 < 0)
+        return genome
+
       val genomeArray = genome.toCharArray
       genomeArray.update(idx1, r2)
       genomeArray.update(idx2, r1)
@@ -138,13 +149,16 @@ object EvolutionOperators {
     }
 
     def insertSeries():String = {
+      if (genome.length <= 1)
+        return genome
+
       val idx1 = Random.nextInt(genome.length - 1) + 1 //don't insert at beginning or end
       (genome.take(idx1) + "+" + genome.drop(idx1)).clean()
     }
 
 
     def deleteParallel():String = {
-      val idx1 = getIndexForDelete('(', genome)
+      val idx1 = getRandomIndexOfChar('(', genome)
       if (idx1 < 0)
         return genome
       val idx2 = getMatchingIdx(genome.drop(idx1))+idx1
@@ -152,14 +166,39 @@ object EvolutionOperators {
     }
 
     def deleteSeries():String = {
-      val idx = getIndexForDelete('+', genome)
+      val idx = getRandomIndexOfChar('+', genome)
       if (idx >= 0) (genome.take(idx) + genome.drop(idx + 1)).clean() else genome
+    }
+
+    def insertResistor()(implicit allowDuplicates:Boolean = false):String = {
+      val genomeResistors = genome.filter(c => resistorSet.contains(c))
+      val r = if (allowDuplicates) resistorSet.toVector.charAt(Random.nextInt(resistorSet.size))
+      else {
+        val remaining = (resistorSet -- genomeResistors.toSet).toVector
+        if (remaining.size < 1)
+          return genome
+        remaining.charAt(Random.nextInt(remaining.size))
+      }
+
+      val idx = Random.nextInt(genome.length +1)
+      genome.take(idx) + r + genome.drop(idx)
+    }
+
+    def deleteResistor():String = {
+      val genomeChars = genome.filter(c => resistorSet.contains(c))
+
+      if (genomeChars.length <= 1)
+        return genome
+
+      val idx = getRandomIndexOfChar(genomeChars.charAt(Random.nextInt(genomeChars.length)), genome)
+      (genome.take(idx) + genome.drop(idx + 1)).clean()
+
     }
 
 
   }
 
-  def getIndexForDelete(c:Char, genome:String):Int = {
+  def getRandomIndexOfChar(c:Char, genome:String):Int = {
     val chars = genome.filter(_ == c)
 
     if(chars.length < 1) {
@@ -191,7 +230,7 @@ object EvolutionOperators {
     -1
   }
 
-  def crossover(p1:String, p2:String): String = {
+  def crossover(p1:String, p2:String, allowDuplicates:Boolean = false, limitLength:Int = 20): String = {
 
     def addMissingParen(genome:String):String = {
       val leftParen = genome.count(_ == '(')
@@ -208,14 +247,17 @@ object EvolutionOperators {
       var res = genome
       var roll = Random.nextDouble()
       while (roll < chance) {
-        Random.nextInt(5) match {
+        Random.nextInt(7) match {
           case 0 => res = res.insertSeries()
           case 1 => res = res.insertParallel()
           case 2 => res = res.deleteSeries()
             if (Random.nextBoolean()) res = res.insertSeries()
           case 3 => res = res.deleteParallel()
             if (Random.nextBoolean()) res = res.insertParallel()
-          case 4=> res = res.swap2Resistors()
+          case 4 => res = res.swap2Resistors()
+          case 5 => res = res.insertResistor()
+          case 6 => res = res.deleteResistor()
+            if (Random.nextBoolean()) res = res.insertResistor()
         }
 
         roll = Random.nextDouble()
@@ -226,11 +268,15 @@ object EvolutionOperators {
     val p1Resistors = p1.filter(c => resistorSet.contains(c))
     GlobalLogger.logger.trace(s"p1 resistors: $p1Resistors")
 
-    val idx1 = Random.nextInt(p1Resistors.length + 1)
-    val idx2 = Random.nextInt(p1Resistors.length - idx1 + 1)+idx1
+    val i1 = Random.nextInt(p1Resistors.length + 1)
+    val i2 = Random.nextInt(p1Resistors.length - i1 + 1)+i1
 
-    val r1 = if (idx1 < p1Resistors.length) p1Resistors.charAt(idx1) else '$'
-    val r2 = if (idx2 < p1Resistors.length) p1Resistors.charAt(idx2) else '$'
+    val r1 = if (i1 < p1Resistors.length) p1Resistors.charAt(i1) else '$'
+    val r2 = if (i2 < p1Resistors.length) p1Resistors.charAt(i2) else '$'
+
+    val idx1 = if(r1 != '$') getRandomIndexOfChar(r1, p1) else p1.length
+    val idx2 = if(r2 != '$') getRandomIndexOfChar(r2, p1) else p1.length
+
 
     GlobalLogger.logger.trace(s"idx1: $idx1")
     GlobalLogger.logger.trace(s"idx2: $idx2")
@@ -240,8 +286,8 @@ object EvolutionOperators {
     GlobalLogger.logger.trace(s"r2: $r2")
 
     //get the left and right tails of the splice points
-    val leftTail:List[Char] = p1.takeWhile(_ != r1).toList
-    val rightTail:List[Char] = p1.dropWhile(_ != r2).toList
+    val leftTail:List[Char] = p1.take(idx1).toList
+    val rightTail:List[Char] = p1.drop(idx2).toList
 
     GlobalLogger.logger.trace(s"left tail: ${leftTail.mkString("")}")
     GlobalLogger.logger.trace(s"right tail: ${rightTail.mkString("")}")
@@ -250,8 +296,13 @@ object EvolutionOperators {
     //val p1Resistors = leftTail.toSet.union(rightTail.toSet)
     val tailResistorsSet = (leftTail ::: rightTail).filter(c => resistorSet.contains(c)).toSet
     var middle = if (idx1 != idx2)
-      p2.filter(c => (resistorSet.contains(c) && !tailResistorsSet.contains(c)) || operatorSet.contains(c))
+      p2.drop(Random.nextInt(p2.length + 1)).
+        filter(c => (resistorSet.contains(c) && (allowDuplicates || !tailResistorsSet.contains(c))) || operatorSet.contains(c))
     else ""
+
+    if (allowDuplicates && limitLength > 0 &&
+      leftTail.length + rightTail.length + middle.length > limitLength)
+      return p1
 
     GlobalLogger.logger.trace(s"middle: $middle")
 
@@ -270,6 +321,8 @@ object EvolutionOperators {
     }
 
     var res = (leftTail ::: middle.toList ::: rightTail).mkString("")
+    if (res.count(c => resistorSet.contains(c)) == 0)
+      return p1
     res = addMissingParen(res).wrapParallel.clean().cleanParens  //we need the wrap in case series is at head or tail
     GlobalLogger.logger.trace(s"Crossover: $res")
     res = chanceForMutation(res)
