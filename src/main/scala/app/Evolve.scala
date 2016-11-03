@@ -22,7 +22,7 @@ object Evolve {
   val generationPopulation = 10000
   val targetResistance = 7000
   val numberOfResultsToKeep = 1000
-  val numberOfGenerations = 1000
+  val numberOfGenerations = 100
   val allowDuplicateResistors = false
   val limitLength = 100
 
